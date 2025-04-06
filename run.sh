@@ -18,7 +18,7 @@ fi
 cd "$BUILD_DIR"
 
 # Run CMake (configure the project)
-cmake ..
+cmake  -DCMAKE_PREFIX_PATH=$(conda activate rl_env;python -c 'import torch;print(torch.utils.cmake_prefix_path)') ..
 
 # Compile the project
 make
