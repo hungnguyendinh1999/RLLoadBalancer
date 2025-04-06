@@ -9,23 +9,21 @@ bool Processor::queue(const std::shared_ptr<Task> &task) {
         return false;
     }
 
-    if (this->_tasks.size() < this->_maxThread) {
-        this->_tasks.push_back(task);
-        this->_totalProcessTime += task->getRemainingDuration();
+    this->_tasks.push_back(task);
+    this->_totalProcessTime += task->getRemainingDuration();
 
-        return true;
-    }
-
-    return false;
+    return true;
 }
 
 void Processor::tick() {
-    for (unsigned i = 0; i < this->_tasks.size(); i++) {
+    unsigned taskToTick = this->getNumBusyThread();
+    for (unsigned i = 0; i < taskToTick; i++) {
         // Reduce task's duration. If duration is 0 then task is considered done, remove
         this->_tasks[i]->tick();
         if (this->_tasks[i]->isFinished()) {
             this->_tasks.erase(_tasks.begin() + i);
             --i;
+            --taskToTick;
         }
 
         // Reduce total process time
@@ -44,7 +42,7 @@ float Processor::getUtilization() const {
 }
 
 unsigned Processor::getNumBusyThread() const {
-    return this->_tasks.size();
+    return std::min(static_cast<unsigned>(this->_tasks.size()), this->_maxThread);
 }
 
 

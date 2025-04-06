@@ -1,16 +1,14 @@
 #include "Environment.h"
 
-#include <chrono>
 #include <iostream>
-#include <random>
 #include <sstream>
 
 Environment::Environment(const unsigned numProc, const unsigned numTask, const unsigned maxThread,
-        const unsigned maxDuration, const unsigned seed, const bool isDebug) {
-    this->_isDebug = isDebug;
+        const unsigned maxDuration, const unsigned seed) {
+    this->_isDebug = false;
     this->_processors = std::vector<std::shared_ptr<Processor>>();
     this->_numTask = numTask;
-    this->_seed = seed;
+    this->_randomizer = std::mt19937(seed);
     this->_maxThread = maxThread;
     this->_maxDuration = maxDuration;
     this->_numProc = numProc;
@@ -20,11 +18,11 @@ Environment::Environment(const unsigned numProc, const unsigned numTask, const u
 }
 
 Environment::Environment(const unsigned numProc, const unsigned numTask, const unsigned maxThread,
-        const unsigned maxDuration, const bool isDebug) {
-    this->_isDebug = isDebug;
+        const unsigned maxDuration) {
+    this->_isDebug = false;
     this->_processors = std::vector<std::shared_ptr<Processor>>();
     this->_numTask = numTask;
-    this->_seed = std::chrono::steady_clock::now().time_since_epoch().count();
+    this->_randomizer = std::mt19937(std::random_device()());
     this->_maxThread = maxThread;
     this->_maxDuration = maxDuration;
     this->_numProc = numProc;
@@ -33,25 +31,29 @@ Environment::Environment(const unsigned numProc, const unsigned numTask, const u
     this->reset();
 }
 
-void Environment::reset() {
+std::vector<unsigned> Environment::reset() {
+    std::vector<unsigned> s = {};
     this->_taskQueue.clear();
     this->_processors.clear();
+
+    // Add tasks
+    for (int i = 0; i < this->_numTask; ++i) {
+        auto rand = std::uniform_int_distribution<unsigned>(1, this->_maxDuration);
+        this->_taskQueue.push_back(std::make_shared<Task>(rand(this->_randomizer)));
+    }
+    s.push_back(this->_numTask);
 
     // Add processors
     for (int i = 0; i < this->_numProc; ++i) {
         this->_processors.push_back(std::make_shared<Processor>(this->_maxThread));
-    }
-
-    std::mt19937 rng = std::mt19937(this->_seed);
-
-    for (int i = 0; i < this->_numTask; ++i) {
-        std::uniform_int_distribution<unsigned> rand = std::uniform_int_distribution<unsigned>(1, this->_maxDuration);
-        this->_taskQueue.push_back(std::make_shared<Task>(rand(rng)));
+        s.push_back(0);
     }
 
     if (this->_isDebug) {
         std::cout << this->toString() << std::endl;
     }
+
+    return s;
 }
 
 std::tuple<std::vector<unsigned>, int, bool> Environment::step(const unsigned action) {
@@ -91,8 +93,8 @@ std::tuple<std::vector<unsigned>, int, bool> Environment::step(const unsigned ac
             done = false;
         }
 
-        if (this->_taskQueue.size() != 0 && proc->getUtilization() < 0.2) {
-            reward -= 10;
+        if (!this->_taskQueue.empty() && proc->getUtilization() < 0.2) {
+            reward -= 1;
         }
     }
 
@@ -103,7 +105,7 @@ std::tuple<std::vector<unsigned>, int, bool> Environment::step(const unsigned ac
     return std::make_tuple(nextState, reward, done);
 }
 
-std::tuple<std::vector<unsigned>, int, bool> Environment::simulate_step(const std::vector<unsigned>& state, unsigned action) {
+std::tuple<std::vector<unsigned>, int, bool> Environment::simulateStep(const std::vector<unsigned>& state, unsigned action) {
     // Action out of bound guard
     if (action >= this->_numAction) {
         std::stringstream es;

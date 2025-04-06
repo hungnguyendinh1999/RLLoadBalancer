@@ -64,7 +64,7 @@ void DPAgent::run_value_iteration() {
             unsigned best_a = 0;
 
             for (unsigned a = 0; a < num_actions; ++a) {
-                auto [s_prime, r, done] = this->environment->simulate_step(s, a);
+                auto [s_prime, r, done] = this->environment->simulateStep(s, a);
                 double v_prime = done ? 0.0 : V[state_to_key(s_prime)];
                 double q = r + gamma * v_prime;
 
