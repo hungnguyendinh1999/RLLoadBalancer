@@ -1,6 +1,13 @@
 #include "DQNAgent.h"
+
+#include <torch/torch.h>
 #include <numeric> // 
 #include <algorithm> // max_element
+#include <iostream>
+#include <tuple>
+
+#include "../Utils/copy_weights.h"
+#include "../Utils/ProgressBar.h"
 
 DQNAgent::DQNAgent(
     const std::shared_ptr<Environment> &env, 
@@ -20,21 +27,22 @@ DQNAgent::DQNAgent(
     _action_size(action_size),
     _gamma(gamma),
     _target_update_freq(target_update_freq),
-    _batch_size(batch_size)
+    _batch_size(batch_size),
+    _q_net(FFN(state_size, action_size, hidden_layers)),
+    _target_net(FFN(state_size, action_size, hidden_layers)),
+    _optimizer(_q_net->parameters(), lr),
+    _randomizer(std::random_device{}())
     {
-        this->_randomizer = std::mt19937(std::random_device()());
         // All the more complex private properties
         // init 2 networks - Q and target net and make sure they have the same weights
-        this->_q_net = FFN(state_size, action_size, hidden_layers);
-        this->_target_net = FFN(state_size, action_size, hidden_layers);
-        target_net_->load_state_dict(q_net_->state_dict());
-        target_net_->eval(); // target not in training mode
-
-        this->optimizer = torch::optim::Adam(q_net_->parameters(), lr);
+        // this->_q_net = FFN(state_size, action_size, hidden_layers);
+        // this->_target_net = FFN(state_size, action_size, hidden_layers);
+        _updateTargetNetwork();
+        _target_net->eval(); // target not in training mode
         
         // Prepopulate buffer using a random policy
-        this->_replay_buffer = ReplayBuffer(replay_size);
-        replay_buffer_.populate(env_, static_cast<size_t>(replay_prepopulate_steps));
+        this->_replay_buffer = std::make_shared<ReplayBuffer>(replay_size);
+        _replay_buffer->populate(_env, static_cast<size_t>(replay_prepopulate_steps));
     }
 
 unsigned DQNAgent::getBehaviorPolicy(const std::vector<unsigned> s, const unsigned t) {
@@ -42,7 +50,7 @@ unsigned DQNAgent::getBehaviorPolicy(const std::vector<unsigned> s, const unsign
     float epsilon = this->_decay_scheduler->getValue(t);
 
     float chance = randChance(this->_randomizer);
-    if (chance < this->_decayScheduler->getValue(t)) {
+    if (chance < this->_decay_scheduler->getValue(t)) {
         std::uniform_int_distribution<unsigned> randAllAction(0, this->_env->getNumAction() - 1);
         return randAllAction(this->_randomizer);
     }
@@ -52,7 +60,8 @@ unsigned DQNAgent::getBehaviorPolicy(const std::vector<unsigned> s, const unsign
 
 unsigned DQNAgent::getTargetPolicy(std::vector<unsigned> s) {
     // Convert the state vector to a tensor and add batch dimension
-    torch::Tensor state_tensor = torch::tensor(s, torch::kFloat32).unsqueeze(0); // [1, state_size]
+    std::vector<float> state_float_vector(s.begin(), s.end()); // convert unsigned -> float
+    torch::Tensor state_tensor = torch::tensor(state_float_vector, torch::kFloat32).unsqueeze(0); // [1, state_size]
 
     // Get Q-values from the network and remove batch dimension
     torch::Tensor qs = this->_q_net->forward(state_tensor).squeeze(0); // [action_size]
@@ -62,7 +71,7 @@ unsigned DQNAgent::getTargetPolicy(std::vector<unsigned> s) {
 
 void DQNAgent::update(std::vector<unsigned> s, unsigned a, int r, std::vector<unsigned> sPrime) {
     bool done = sPrime.empty();
-    _replay_buffer.add(s, a, static_cast<float>(r), sPrime, done);
+    _replay_buffer->add(s, a, static_cast<float>(r), sPrime, done);
 
     // Perform batch sampling and update Q-net
     _trainStep();
@@ -103,6 +112,7 @@ std::vector<int> DQNAgent::train(unsigned numEpisode) {
 }
 
 void DQNAgent::rollout() {
+    int total_reward = 0;
     std::vector<unsigned> s = this->_env->reset();
     this->_env->setDebug(true);
     bool done = false;
@@ -116,8 +126,9 @@ void DQNAgent::rollout() {
 
         s = sPrime;
         ++t;
+        total_reward += r;
     }
-    std::cout << "Took " << t << " time steps to finish!" << std::endl;
+    std::cout << "[Rollout] Took " << t << " time steps to finish!\nTotal Reward: " << total_reward << std::endl;
 }
 
 unsigned DQNAgent::_argmax(const torch::Tensor& v) {
@@ -149,36 +160,35 @@ unsigned DQNAgent::_argmax(const torch::Tensor& v) {
  */
 void DQNAgent::_trainStep() {
     // Not enough samples to train...yet
-    if (_replay_buffer.size() < _batch_size) {
+    if (_replay_buffer->get_size() < _batch_size) {
         return;
     }
 
     // Sample a minibatch of transitions
     // # batch = memory.sample(batch_size)
-    auto batch = _replay_buffer.sample(_batch_size);
+    auto batch = _replay_buffer->sample(_batch_size);
 
     // # loss = train_dqn_batch() starts here #
 
     // PRE-processing: Extract data from "batch" tuple
-    std::vector<std::vector<unsigned>> states, next_states;
-    std::vector<float> rewards;
-    std::vector<unsigned> actions;
-    std::vector<bool> dones;
+    // Preallocate tensors
+    torch::Tensor states_tensor = torch::empty({(int64_t)_batch_size, _state_size}, torch::kFloat32);
+    torch::Tensor next_states_tensor = torch::empty({(int64_t)_batch_size, _state_size}, torch::kFloat32);
+    torch::Tensor actions_tensor = torch::empty({(int64_t)_batch_size}, torch::kLong);
+    torch::Tensor rewards_tensor = torch::empty({(int64_t)_batch_size}, torch::kFloat32);
+    torch::Tensor dones_tensor = torch::empty({(int64_t)_batch_size}, torch::kBool);
 
-    for (const auto& transition : batch) {
-        states.push_back(transition.state);
-        actions.push_back(transition.action);
-        rewards.push_back(transition.reward);
-        next_states.push_back(transition.next_state);
-        dones.push_back(transition.done);
+
+    for (size_t i = 0; i < _batch_size; ++i) {
+        const auto& t = batch[i];
+        for (size_t j = 0; j < _state_size; ++j) {
+            states_tensor[i][j] = static_cast<float>(t.state[j]);
+            next_states_tensor[i][j] = static_cast<float>(t.next_state[j]);
+        }
+        actions_tensor[i] = static_cast<int64_t>(t.action);
+        rewards_tensor[i] = t.reward;
+        dones_tensor[i] = t.done;
     }
-
-    // Convert to tensors
-    torch::Tensor states_tensor = torch::tensor(states, torch::kFloat32);
-    torch::Tensor actions_tensor = torch::tensor(actions, torch::kLong);
-    torch::Tensor rewards_tensor = torch::tensor(rewards, torch::kFloat32);
-    torch::Tensor next_states_tensor = torch::tensor(next_states, torch::kFloat32);
-    torch::Tensor dones_tensor = torch::tensor(dones, torch::kBool);
 
     // # dqn_model(states).gather(1, actions) # Compute values
     torch::Tensor q_values = _q_net->forward(states_tensor);
@@ -205,5 +215,5 @@ void DQNAgent::_trainStep() {
  */
 void DQNAgent::_updateTargetNetwork() {
     // Note: state_dict() returns OrderedDict that contains copies, not references.
-    this->_target_net->load_state_dict(this->_q_net->state_dict());
+    copy_weights(_q_net, _target_net);
 }

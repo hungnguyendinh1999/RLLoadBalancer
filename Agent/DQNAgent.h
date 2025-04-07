@@ -2,13 +2,15 @@
 #define DQN_AGENT_H
 
 #include <memory>
+#include <vector>
+#include <random>
 #include <torch/torch.h>
 
 #include "BaseAgent.h"
-#include "../Environment/Environment.h"
 #include "FFN.h"
 #include "ReplayBuffer.h"
-#include "DecayScheduler.h"
+#include "../Environment/Environment.h"
+#include "../DecayScheduler/DecayScheduler.h"
 
 
 class DQNAgent: BaseAgent {
@@ -36,10 +38,10 @@ private:
     std::shared_ptr<Environment> _env;
     std::shared_ptr<DecayScheduler> _decay_scheduler;
 
-    FFN _q_net;
-    FFN _target_net;
+    FFN _q_net = nullptr;
+    FFN _target_net = nullptr;
     torch::optim::Adam _optimizer;
-    ReplayBuffer _replay_buffer;
+    std::shared_ptr<ReplayBuffer> _replay_buffer;
     std::mt19937 _randomizer;
 
     int _state_size;
@@ -50,7 +52,7 @@ private:
     size_t _batch_size;
 
     void _trainStep(); // helper for learning from replay buffer
-    void _updateTargetNetwork()l // helper to update target network
+    void _updateTargetNetwork(); // helper to update target network
     unsigned _argmax(const torch::Tensor& v);
 };
 

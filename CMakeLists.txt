@@ -22,6 +22,10 @@ add_executable(RLLoadBalancer main.cpp
         Agent/QLAgent.h
         Agent/DPAgent.cpp
         Agent/DPAgent.h
+        Agent/FFN.cpp
+        Agent/FFN.h
+        Agent/ReplayBuffer.cpp
+        Agent/ReplayBuffer.h
         Utils/ProgressBar.cpp
         Utils/ProgressBar.h
         DecayScheduler/DecayScheduler.h
@@ -32,3 +36,48 @@ add_executable(RLLoadBalancer main.cpp
         Utils/Plot.h
 )
 target_link_libraries(RLLoadBalancer "${TORCH_LIBRARIES}" Matplot++::matplot)
+
+add_executable(test_replay_buffer test_replay_buffer.cpp
+        Agent/ReplayBuffer.cpp
+        Agent/ReplayBuffer.h
+        Environment/Environment.h
+        Environment/Task.h
+        Environment/Task.cpp
+        Environment/Environment.cpp
+        Environment/Processor.cpp
+        Environment/Processor.h)
+target_link_libraries(test_replay_buffer ${TORCH_LIBRARIES})
+
+add_executable(test_ffn test_ffn.cpp
+        Agent/FFN.cpp
+        Agent/FFN.h
+        Environment/Environment.h
+        Environment/Task.h
+        Environment/Task.cpp
+        Environment/Environment.cpp
+        Environment/Processor.cpp
+        Environment/Processor.h)
+target_link_libraries(test_ffn ${TORCH_LIBRARIES})
+
+add_executable(test_dqn_agent test_dqn_agent.cpp
+        Agent/DQNAgent.h
+        Agent/DQNAgent.cpp
+        Agent/ReplayBuffer.cpp
+        Agent/ReplayBuffer.h
+        Agent/FFN.cpp
+        Agent/FFN.h
+        Environment/Environment.h
+        Environment/Task.h
+        Environment/Task.cpp
+        Environment/Environment.cpp
+        Environment/Processor.cpp
+        Environment/Processor.h
+        Utils/ProgressBar.cpp
+        Utils/ProgressBar.h
+        DecayScheduler/DecayScheduler.cpp
+        DecayScheduler/DecayScheduler.h
+        DecayScheduler/LinearDecayScheduler.cpp
+        DecayScheduler/LinearDecayScheduler.h
+)
+target_link_libraries(test_dqn_agent ${TORCH_LIBRARIES})
+
