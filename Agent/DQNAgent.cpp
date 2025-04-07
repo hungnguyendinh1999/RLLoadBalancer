@@ -35,8 +35,6 @@ DQNAgent::DQNAgent(
     {
         // All the more complex private properties
         // init 2 networks - Q and target net and make sure they have the same weights
-        // this->_q_net = FFN(state_size, action_size, hidden_layers);
-        // this->_target_net = FFN(state_size, action_size, hidden_layers);
         _updateTargetNetwork();
         _target_net->eval(); // target not in training mode
         
@@ -214,6 +212,5 @@ void DQNAgent::_trainStep() {
  * Updates the target network by copying weights from the Q-network.
  */
 void DQNAgent::_updateTargetNetwork() {
-    // Note: state_dict() returns OrderedDict that contains copies, not references.
     copy_weights(_q_net, _target_net);
 }

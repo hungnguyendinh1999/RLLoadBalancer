@@ -31,33 +31,35 @@ add_executable(RLLoadBalancer main.cpp
         DecayScheduler/DecayScheduler.h
         DecayScheduler/LinearDecayScheduler.cpp
         DecayScheduler/LinearDecayScheduler.h
+        DecayScheduler/ExponentialDecayScheduler.cpp
+        DecayScheduler/ExponentialDecayScheduler.h
         DecayScheduler/DecayScheduler.cpp
         Utils/Plot.cpp
         Utils/Plot.h
 )
 target_link_libraries(RLLoadBalancer "${TORCH_LIBRARIES}" Matplot++::matplot)
 
-add_executable(test_replay_buffer test_replay_buffer.cpp
-        Agent/ReplayBuffer.cpp
-        Agent/ReplayBuffer.h
-        Environment/Environment.h
-        Environment/Task.h
-        Environment/Task.cpp
-        Environment/Environment.cpp
-        Environment/Processor.cpp
-        Environment/Processor.h)
-target_link_libraries(test_replay_buffer ${TORCH_LIBRARIES})
+# add_executable(test_replay_buffer test_replay_buffer.cpp
+#         Agent/ReplayBuffer.cpp
+#         Agent/ReplayBuffer.h
+#         Environment/Environment.h
+#         Environment/Task.h
+#         Environment/Task.cpp
+#         Environment/Environment.cpp
+#         Environment/Processor.cpp
+#         Environment/Processor.h)
+# target_link_libraries(test_replay_buffer ${TORCH_LIBRARIES})
 
-add_executable(test_ffn test_ffn.cpp
-        Agent/FFN.cpp
-        Agent/FFN.h
-        Environment/Environment.h
-        Environment/Task.h
-        Environment/Task.cpp
-        Environment/Environment.cpp
-        Environment/Processor.cpp
-        Environment/Processor.h)
-target_link_libraries(test_ffn ${TORCH_LIBRARIES})
+# add_executable(test_ffn test_ffn.cpp
+#         Agent/FFN.cpp
+#         Agent/FFN.h
+#         Environment/Environment.h
+#         Environment/Task.h
+#         Environment/Task.cpp
+#         Environment/Environment.cpp
+#         Environment/Processor.cpp
+#         Environment/Processor.h)
+# target_link_libraries(test_ffn ${TORCH_LIBRARIES})
 
 add_executable(test_dqn_agent test_dqn_agent.cpp
         Agent/DQNAgent.h
@@ -76,6 +78,8 @@ add_executable(test_dqn_agent test_dqn_agent.cpp
         Utils/ProgressBar.h
         DecayScheduler/DecayScheduler.cpp
         DecayScheduler/DecayScheduler.h
+        DecayScheduler/ExponentialDecayScheduler.cpp
+        DecayScheduler/ExponentialDecayScheduler.h
         DecayScheduler/LinearDecayScheduler.cpp
         DecayScheduler/LinearDecayScheduler.h
 )
